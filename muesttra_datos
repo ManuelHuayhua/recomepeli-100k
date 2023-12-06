@@ -1,0 +1,81 @@
+from flask import Flask, render_template, request
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.neighbors import NearestNeighbors
+
+app = Flask(__name__)
+
+# Cargar datos desde archivos CSV
+movies = pd.read_csv('movies.csv')
+ratings = pd.read_csv('ratings.csv')
+tags = pd.read_csv('tags.csv')
+
+# Crear una tabla pivote para tener usuarios en filas y películas en columnas
+user_movie_ratings = ratings.pivot_table(index='userId', columns='movieId', values='rating')
+
+# Manejar NaN (no votado) con un valor predeterminado (0 en este caso)
+user_movie_ratings = user_movie_ratings.fillna(0)
+
+# Calcular similitud coseno entre usuarios
+user_similarity = cosine_similarity(user_movie_ratings)
+
+# Inicializar el modelo k-NN
+knn_model = NearestNeighbors(metric='cosine', algorithm='brute')
+knn_model.fit(user_movie_ratings)
+
+def get_movie_recommendations(user_id, num_neighbors=5):
+    # Obtener índice del usuario en la tabla pivote
+    user_index = user_movie_ratings.index.get_loc(user_id)
+
+    # Encontrar vecinos más cercanos
+    distances, indices = knn_model.kneighbors(user_movie_ratings.iloc[user_index, :].values.reshape(1, -1), n_neighbors=num_neighbors+1)
+
+    # Obtener películas votadas por los vecinos
+    neighbor_movies = user_movie_ratings.iloc[indices.flatten()[1:], :]
+
+    # Calcular el promedio de las películas votadas por los vecinos
+    avg_ratings = neighbor_movies.mean()
+
+    # Filtrar películas que el usuario aún no ha votado
+    user_ratings = user_movie_ratings.iloc[user_index, :]
+    unrated_movies = user_ratings[user_ratings == 0].index
+
+    # Obtener las recomendaciones para las películas no votadas
+    recommendations = avg_ratings[unrated_movies].sort_values(ascending=False)
+
+    return recommendations.index[:5].tolist()
+
+@app.route('/')
+def index():
+    return render_template('index.html', movies=movies, ratings=ratings, tags=tags)
+
+@app.route('/movies')
+def show_movies():
+    return render_template('movies.html', movies=movies)
+
+@app.route('/ratings')
+def show_ratings():
+    return render_template('ratings.html', ratings=ratings)
+
+@app.route('/tags')
+def show_tags():
+    return render_template('tags.html', tags=tags)
+
+@app.route('/recommendations', methods=['POST', 'GET'])
+def show_recommendations():
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+
+        # Verificar si 'user_id' es un número entero
+        if user_id is not None and user_id.isdigit():
+            user_id = int(user_id)
+            recommendations = get_movie_recommendations(user_id)
+            recommended_movies = movies[movies['movieId'].isin(recommendations)]
+            return render_template('recommendations.html', user_id=user_id, recommended_movies=recommended_movies)
+    
+    # Manejar el caso donde 'user_id' no está presente o no es un número
+    return render_template('recommendations.html', user_id=None, recommended_movies=pd.DataFrame())
+
+
+if __name__ == '__main__':
+    app.run(debug=True)

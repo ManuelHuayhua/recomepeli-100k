@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporary Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Temporary Results</h1>
+
+    {% if recommended_movies.empty %}
+        <p>No recommendations available.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Movie ID</th>
+                    <th>Title</th>
+                    <th>Genres</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in recommended_movies.iterrows() %}
+                    <tr>
+                        <td>{{ row['movieId'] }}</td>
+                        <td>{{ row['title'] }}</td>
+                        <td>{{ row['genres'] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <a href="/">Go Back</a>
+</body>
+</html>

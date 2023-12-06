@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Recommendations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Movie Recommendations for User {{ user_id }}</h1>
+    <form method="post" action="/">
+        <label for="user_id">Enter User ID:</label>
+        <input type="text" name="user_id" required>
+        <button type="submit">Get Recommendations</button>
+    </form>
+
+    {% if recommended_movies.empty %}
+        <p>No recommendations available for this user.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Movie ID</th>
+                    <th>Title</th>
+                    <th>Genres</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in recommended_movies.iterrows() %}
+                    <tr>
+                        <td>{{ row['movieId'] }}</td>
+                        <td>{{ row['title'] }}</td>
+                        <td>{{ row['genres'] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    <a href="/movies">View All Movies</a>
+    <a href="/ratings">View All Ratings</a>
+    <a href="/tags">View All Tags</a>
+    <a href="/temp_results">Go Back</a>
+    <a href="/neighbors_data">Go Baxdxddxdck</a>
+</body>
+</html>

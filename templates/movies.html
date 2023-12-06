@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Información de Películas</title>
+</head>
+<body>
+    <h1>Películas</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th>MovieId</th>
+                <th>Título</th>
+                <th>Géneros</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for index, row in movies.iterrows() %}
+                <tr>
+                    <td>{{ row['movieId'] }}</td>
+                    <td>{{ row['title'] }}</td>
+                    <td>{{ row['genres'] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

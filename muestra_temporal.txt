@@ -1,0 +1,214 @@
+from flask import Flask, render_template, request, session
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.neighbors import NearestNeighbors
+
+app = Flask(__name__)
+app.secret_key = 'your_secret_key'  # Asegúrate de cambiar esto a una clave secreta segura en un entorno de producción
+
+# Cargar datos desde archivos CSV
+movies = pd.read_csv('movies.csv')
+ratings = pd.read_csv('ratings.csv')
+tags = pd.read_csv('tags.csv')
+
+# Crear una tabla pivote para tener usuarios en filas y películas en columnas
+user_movie_ratings = ratings.pivot_table(index='userId', columns='movieId', values='rating')
+
+# Manejar NaN (no votado) con un valor predeterminado (0 en este caso)
+user_movie_ratings = user_movie_ratings.fillna(0)
+
+# Calcular similitud coseno entre usuarios
+user_similarity = cosine_similarity(user_movie_ratings)
+
+# Inicializar el modelo k-NN
+knn_model = NearestNeighbors(metric='cosine', algorithm='brute')
+knn_model.fit(user_movie_ratings)
+
+def get_movie_recommendations(user_id, num_neighbors=5):
+    # Obtener índice del usuario en la tabla pivote
+    user_index = user_movie_ratings.index.get_loc(user_id)
+
+    # Encontrar vecinos más cercanos
+    distances, indices = knn_model.kneighbors(user_movie_ratings.iloc[user_index, :].values.reshape(1, -1), n_neighbors=num_neighbors+1)
+
+    # Obtener películas votadas por los vecinos
+    neighbor_movies = user_movie_ratings.iloc[indices.flatten()[1:], :]
+
+    # Calcular el promedio de las películas votadas por los vecinos
+    avg_ratings = neighbor_movies.mean()
+
+    # Filtrar películas que el usuario aún no ha votado
+    user_ratings = user_movie_ratings.iloc[user_index, :]
+    unrated_movies = user_ratings[user_ratings == 0].index
+
+    # Almacena las recomendaciones en la sesión
+    recommendations = avg_ratings[unrated_movies].sort_values(ascending=False)
+    session['recommendations'] = recommendations.index[:5].tolist()
+
+    # Devuelve las recomendaciones
+    return session['recommendations']
+
+@app.route('/', methods=['POST', 'GET'])
+def show_recommendations():
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+
+        # Verificar si 'user_id' es un número entero
+        if user_id is not None and user_id.isdigit():
+            user_id = int(user_id)
+            recommendations = get_movie_recommendations(user_id)
+            recommended_movies = movies[movies['movieId'].isin(recommendations)]
+            return render_template('index.html', user_id=user_id, recommended_movies=recommended_movies)
+    
+    # Manejar el caso donde 'user_id' no está presente o no es un número
+    return render_template('index.html', user_id=None, recommended_movies=pd.DataFrame())
+
+@app.route('/temp_results')
+def show_temp_results():
+    # Mostrar los resultados temporales almacenados en la sesión
+    recommendations = session.get('recommendations', [])
+    recommended_movies = movies[movies['movieId'].isin(recommendations)]
+    return render_template('temp_results.html', recommended_movies=recommended_movies)
+
+@app.route('/movies')
+def show_movies():
+    return render_template('movies.html', movies=movies)
+
+@app.route('/ratings')
+def show_ratings():
+    return render_template('ratings.html', ratings=ratings)
+
+@app.route('/tags')
+def show_tags():
+    return render_template('tags.html', tags=tags)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+///////////
+index:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Recommendations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Movie Recommendations for User {{ user_id }}</h1>
+    <form method="post" action="/">
+        <label for="user_id">Enter User ID:</label>
+        <input type="text" name="user_id" required>
+        <button type="submit">Get Recommendations</button>
+    </form>
+
+    {% if recommended_movies.empty %}
+        <p>No recommendations available for this user.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Movie ID</th>
+                    <th>Title</th>
+                    <th>Genres</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in recommended_movies.iterrows() %}
+                    <tr>
+                        <td>{{ row['movieId'] }}</td>
+                        <td>{{ row['title'] }}</td>
+                        <td>{{ row['genres'] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    <a href="/movies">View All Movies</a>
+    <a href="/ratings">View All Ratings</a>
+    <a href="/tags">View All Tags</a>
+</body>
+</html>
+///////////
+temp_results:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporary Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Temporary Results</h1>
+
+    {% if recommended_movies.empty %}
+        <p>No recommendations available.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Movie ID</th>
+                    <th>Title</th>
+                    <th>Genres</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in recommended_movies.iterrows() %}
+                    <tr>
+                        <td>{{ row['movieId'] }}</td>
+                        <td>{{ row['title'] }}</td>
+                        <td>{{ row['genres'] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <a href="/">Go Back</a>
+</body>
+</html>
